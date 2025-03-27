@@ -217,8 +217,14 @@ class Evaluator:
             if profiler:
                 global_sample_nums = kwargs.get('global_sample_nums', None)
                 sample_time = kwargs.get('sample_time', None)
+                duplicate_check_method = kwargs.get("method", "similarity")  # 傳遞檢查方法
+                threshold = kwargs.get("threshold", 0.9)  # 傳遞相似度閾值
                 new_function.global_sample_nums = global_sample_nums
                 new_function.score = None
                 new_function.sample_time = sample_time
                 new_function.evaluate_time = evaluate_time
-                profiler.register_function(new_function)
+                profiler.register_function(
+                    new_function,
+                    method=duplicate_check_method,
+                    threshold=threshold
+                )

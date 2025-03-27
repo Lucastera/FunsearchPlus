@@ -67,6 +67,7 @@ class LLMAPI(sampler.LLM):
 
     def _draw_sample(self, content: str) -> str:
         prompt = '\n'.join([content, self._additional_prompt])
+
         while True:
             try:
                 conn = http.client.HTTPSConnection("api.deepseek.com")
@@ -90,12 +91,13 @@ class LLMAPI(sampler.LLM):
                 data = res.read().decode("utf-8")
                 data = json.loads(data)
                 response = data['choices'][0]['message']['content']
+
                 # trim function
                 if self._trim:
                     response = _trim_preface_of_body(response)
                 return response
             except Exception:
-                time.sleep(2)
+                time.sleep(1)
                 continue
 
 from implementation import evaluator
@@ -269,13 +271,16 @@ from implementation import config
 if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
-    global_max_sample_num = 10  # if it is set to None, funsearch will execute an endless loop
+    global_max_sample_num = 20  # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
         inputs=bin_packing_or3,
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_api'
+        log_dir='../logs/funsearch_llm_api',
+        enable_duplicate_check=True,
+        duplicate_check_method='hash', # 'hash' or 'similarity' or 'ai_agent'
+        similarity_threshold=0.9
     )
 

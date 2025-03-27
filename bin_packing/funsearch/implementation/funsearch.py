@@ -67,6 +67,7 @@ def main(
     function_to_evolve, function_to_run = _extract_function_names(specification)
     template = code_manipulation.text_to_program(specification)
     database = programs_database.ProgramsDatabase(config.programs_database, template, function_to_evolve)
+    print(database)
 
     # get log_dir and create profiler
     log_dir = kwargs.get('log_dir', None)
@@ -89,11 +90,15 @@ def main(
 
     # We send the initial implementation to be analysed by one of the evaluators.
     initial = template.get_function(function_to_evolve).body
+
     evaluators[0].analyse(initial, island_id=None, version_generated=None, profiler=profiler)
+
+
 
     # Set global max sample nums.
     samplers = [sampler.Sampler(database, evaluators, config.samples_per_prompt, max_sample_nums=max_sample_nums, llm_class=class_config.llm_class)
                 for _ in range(config.num_samplers)]
+
 
     # This loop can be executed in parallel on remote sampler machines. As each
     # sampler enters an infinite loop, without parallelization only the first

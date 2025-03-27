@@ -115,10 +115,12 @@ class ProgramsDatabase:
         # Initialize empty islands.
         self._islands: list[Island] = []
         for _ in range(config.num_islands):
+            # 禁用重複代碼檢查，初始化島嶼
             self._islands.append(
                 Island(template, function_to_evolve, config.functions_per_prompt,
                        config.cluster_sampling_temperature_init,
-                       config.cluster_sampling_temperature_period))
+                       config.cluster_sampling_temperature_period)
+            )
         self._best_score_per_island: list[float] = (
                 [-float('inf')] * config.num_islands)
         self._best_program_per_island: list[code_manipulation.Function | None] = (
@@ -156,11 +158,17 @@ class ProgramsDatabase:
             global_sample_nums = kwargs.get('global_sample_nums', None)
             sample_time = kwargs.get('sample_time', None)
             evaluate_time = kwargs.get('evaluate_time', None)
+            duplicate_check_method = kwargs.get('method', 'similarity')  # 傳遞檢查方法
+            threshold = kwargs.get('threshold', 0.9)  # 傳遞相似度閾值
             program.score = score
             program.global_sample_nums = global_sample_nums
             program.sample_time = sample_time
             program.evaluate_time = evaluate_time
-            profiler.register_function(program)
+            profiler.register_function(
+                program,
+                method=duplicate_check_method,
+                threshold=threshold
+            )
 
     def register_program(
             self,
