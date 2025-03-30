@@ -269,6 +269,8 @@ from implementation import config
 # It should be noted that the if __name__ == '__main__' is required.
 # Because the inner code uses multiprocess evaluation.
 if __name__ == '__main__':
+    # 記錄開始時間
+    start_time = time.time()
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     global_max_sample_num = 20  # if it is set to None, funsearch will execute an endless loop
@@ -278,9 +280,14 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_api',
-        enable_duplicate_check=True,
-        duplicate_check_method='hash', # 'hash' or 'similarity' or 'ai_agent'
-        similarity_threshold=0.9
+        log_dir='../logs/funsearch_llm_original',
+        enable_duplicate_check=False,
+        duplicate_check_method='no', # 'hash' or 'similarity' or 'ai_agent'
+        similarity_threshold=0.8 # only works when duplicate_check_method='similarity'  or 'ai_agent'
     )
+    # 記錄結束時間
+    end_time = time.time()
 
+    # 計算並打印所用時間
+    elapsed_time = end_time - start_time
+    print(f"Funsearch 執行完成，所用時間: {elapsed_time:.2f} 秒")

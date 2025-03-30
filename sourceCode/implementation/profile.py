@@ -171,9 +171,9 @@ class Profiler:
             return
 
         function_code = str(programs)
-        if self._evaluated_functions !=[] and function_code == self._evaluated_functions[0]:
-            return
-        elif method == "hash" and self.is_duplicate_by_hash(function_code):  # 基於哈希值檢查
+        #if self._evaluated_functions !=[] and function_code == self._evaluated_functions[0]:
+        #    return
+        if method == "hash" and self.is_duplicate_by_hash(function_code):  # 基於哈希值檢查
             print("#########################################")
             print("#  Skipping duplicate function (hash):  #")
             print("#########################################")

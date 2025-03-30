@@ -54,27 +54,34 @@ def main(
         config: config_lib.Config,
         max_sample_nums: int | None,
         class_config: config_lib.ClassConfig,
+        enable_duplicate_check: bool = True,  # 是否啟用重複代碼檢查
+        duplicate_check_method: str = "similarity",  # 檢查方法 ("hash" 或 "similarity")
+        similarity_threshold: float = 0.9,  # 相似度閾值（僅適用於 "similarity" 方法）
         **kwargs
 ):
     """Launches a FunSearch experiment.
-    RZ:
     Args:
-        specification: the boilerplate code for the problem.
-        inputs       : the data instances for the problem (see 'bin_packing_utils.py').
-        config       : config file.
-        max_sample_nums: the maximum samples nums from LLM. 'None' refers to no stop.
+        specification: 問題的模板代碼。
+        inputs       : 問題的數據集（見 'bin_packing_utils.py'）。
+        config       : 配置文件。
+        max_sample_nums: LLM 的最大採樣數量。'None' 表示無限制。
+        enable_duplicate_check: 是否啟用重複代碼檢查。
+        duplicate_check_method: 檢查方法 ("hash" 或 "similarity")。
+        similarity_threshold: 相似度閾值（僅適用於 "similarity" 方法）。
     """
     function_to_evolve, function_to_run = _extract_function_names(specification)
     template = code_manipulation.text_to_program(specification)
     database = programs_database.ProgramsDatabase(config.programs_database, template, function_to_evolve)
-    print(database)
 
-    # get log_dir and create profiler
-    log_dir = kwargs.get('log_dir', None)
-    if log_dir is None:
-        profiler = None
+    # 初始化完成後，根據參數啟用或禁用重複代碼檢查
+    if enable_duplicate_check:
+        profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
+        profiler._evaluated_hashes.clear()
+        profiler._evaluated_functions.clear()
     else:
-        profiler = profile.Profiler(log_dir)
+        profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
+        profiler._evaluated_hashes.clear()
+        profiler._evaluated_functions.clear()
 
     evaluators = []
     for _ in range(config.num_evaluators):
@@ -84,24 +91,26 @@ def main(
             function_to_evolve,
             function_to_run,
             inputs,
-            timeout_seconds=config.evaluate_timeout_seconds,
             sandbox_class=class_config.sandbox_class
         ))
 
     # We send the initial implementation to be analysed by one of the evaluators.
     initial = template.get_function(function_to_evolve).body
-
-    evaluators[0].analyse(initial, island_id=None, version_generated=None, profiler=profiler)
-
-
+    evaluators[0].analyse(
+        initial,
+        island_id=None,
+        version_generated=None,
+        profiler=profiler,
+        method=duplicate_check_method,  # 傳遞檢查方法
+        threshold=similarity_threshold  # 傳遞相似度閾值
+    )
 
     # Set global max sample nums.
     samplers = [sampler.Sampler(database, evaluators, config.samples_per_prompt, max_sample_nums=max_sample_nums, llm_class=class_config.llm_class)
                 for _ in range(config.num_samplers)]
 
-
     # This loop can be executed in parallel on remote sampler machines. As each
     # sampler enters an infinite loop, without parallelization only the first
     # sampler will do any work.
     for s in samplers:
-        s.sample(profiler=profiler)
+        s.sample(profiler=profiler, method=duplicate_check_method, threshold=similarity_threshold)
