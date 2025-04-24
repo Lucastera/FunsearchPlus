@@ -164,17 +164,31 @@ class Profiler:
         if not self._use_multi_objective or not scores_per_test:
             return False
             
-        from implementation import code_manipulation
         temp_function = code_manipulation.Function(name="temp", args="", body=function_code)
         
         multi_scores = self._multi_objective_evaluator.compute_multi_objective_score(
             temp_function, scores_per_test, self._evaluated_functions, self._objective_weights
         )
         
+        valuable_reasons = []
+        
         for objective, data in self._best_per_objective.items():
             if objective in multi_scores["scores"] and multi_scores["scores"][objective] > data["score"] * threshold:
-                return True
-                
+                valuable_reasons.append({
+                    "objective": objective,
+                    "current_score": multi_scores["scores"][objective],
+                    "threshold": data["score"] * threshold,
+                    "previous_best": data["score"]
+                })
+        
+        if valuable_reasons:
+            # 记录为什么这个解决方案被认为是有价值的
+            temp_function.valuable_reasons = valuable_reasons
+            print("Valuable solution reasons:")
+            for reason in valuable_reasons:
+                print(f"- {reason['objective']}: {reason['current_score']} > {reason['threshold']} (threshold)")
+            return True
+                    
         return False
     
     def _write_tensorboard(self):
@@ -186,24 +200,6 @@ class Profiler:
             self._cur_best_program_score,
             global_step=self._num_samples
         )
-        
-        if self._use_multi_objective and self._multi_objective_scores:
-            latest_scores = self._multi_objective_scores[-1]["scores"]
-            self._writer.add_scalars(
-                'Multi-Objective Scores',
-                {k: v for k, v in latest_scores.items()},
-                global_step=self._num_samples
-            )
-            
-            best_scores = {
-                f"best_{obj}": data["score"] 
-                for obj, data in self._best_per_objective.items()
-            }
-            self._writer.add_scalars(
-                'Best Multi-Objective Scores',
-                best_scores,
-                global_step=self._num_samples
-            )
 
         self._writer.add_scalars(
             'Legal/Illegal Function',
@@ -224,18 +220,37 @@ class Profiler:
         sample_order = sample_order if sample_order is not None else 0
         function_str = str(programs)
         score = programs.score
+        
+        # 准备要保存的内容，添加是否是有价值的相似解决方案的标记
         content = {
             'sample_order': sample_order,
             'function': function_str,
-            'score': score
+            'score': score,
+            'is_valuable_similar': getattr(programs, 'is_valuable_similar', False)
         }
+        
+        # 添加有价值解决方案的原因（如果存在）
+        if hasattr(programs, 'valuable_reasons'):
+            content['valuable_reasons'] = programs.valuable_reasons
         
         if hasattr(programs, 'multi_objective_scores'):
             content['multi_objective_scores'] = programs.multi_objective_scores
+            
+            # 添加每个目标的相对排名信息
+            if self._use_multi_objective and self._multi_objective_scores:
+                # 计算当前解决方案在每个目标上的排名百分比
+                rankings = {}
+                for objective in programs.multi_objective_scores["scores"]:
+                    current_score = programs.multi_objective_scores["scores"][objective]
+                    all_scores = [s["scores"][objective] for s in self._multi_objective_scores]
+                    ranking = sum(1 for s in all_scores if s >= current_score) / len(all_scores)
+                    rankings[objective] = ranking
+                
+                content['objective_rankings'] = rankings
         
         path = os.path.join(self._json_dir, f'samples_{sample_order}.json')
         with open(path, 'w') as json_file:
-            json.dump(content, json_file)
+            json.dump(content, json_file, indent=2)
 
     def register_function(self, programs: code_manipulation.Function, scores_per_test=None, **kwargs):
         """Registers a function and checks for duplicates."""
@@ -256,9 +271,13 @@ class Profiler:
         elif method == "ai_agent" and self.is_duplicate_by_ai_agent(function_code, threshold):  # 基於 AI Agent 檢查
             is_duplicate = True
         
+        # 新增标记变量，记录是否是有价值的相似解决方案
+        is_valuable_similar = False
+        
         if is_duplicate and self._use_multi_objective:
             if self.is_valuable_solution(function_code, scores_per_test, threshold):
                 is_duplicate = False
+                is_valuable_similar = True
                 print("#######################################")
                 print("#  Keeping valuable similar solution  #")
                 print("#######################################")
@@ -273,10 +292,15 @@ class Profiler:
         self._evaluated_hashes.add(code_hash)
         self._evaluated_functions.append(function_code)
         
+        # 为函数添加是否是有价值的相似解决方案的标记
+        programs.is_valuable_similar = is_valuable_similar
+        
         if self._use_multi_objective and scores_per_test:
+            print(f"Computing multi-objective scores with use_multi_objective={self._use_multi_objective}")
             multi_scores = self._multi_objective_evaluator.compute_multi_objective_score(
                 programs, scores_per_test, self._evaluated_functions[:-1], self._objective_weights
             )
+            print(f"Computed multi_scores: {multi_scores}")
             
             for objective, score in multi_scores["scores"].items():
                 if score > self._best_per_objective[objective]["score"]:
@@ -289,6 +313,20 @@ class Profiler:
                 
             self._multi_objective_scores.append(multi_scores)
             programs.multi_objective_scores = multi_scores
+            
+            # 记录每一轮的分数情况
+            if self._log_dir:
+                self._writer.add_scalars(
+                    'Multi-Objective Scores',
+                    {
+                        'performance': multi_scores["scores"]["performance"],
+                        'simplicity': multi_scores["scores"]["simplicity"],
+                        'interpretability': multi_scores["scores"]["interpretability"],
+                        'novelty': multi_scores["scores"]["novelty"],
+                        'total': multi_scores["total"]
+                    },
+                    global_step=self._num_samples
+                )
 
         sample_orders: int = programs.global_sample_nums
         if sample_orders not in self._all_sampled_functions:
@@ -314,6 +352,22 @@ class Profiler:
         print(f'Sample time  : {str(sample_time)}')
         print(f'Evaluate time: {str(evaluate_time)}')
         print(f'Sample orders: {str(sample_orders)}')
+        
+        # 显示是否是有价值的相似解决方案
+        if hasattr(function, 'is_valuable_similar') and function.is_valuable_similar:
+            print(f'Is valuable similar solution: True')
+            if hasattr(function, 'valuable_reasons'):
+                print(f'Valuable reasons:')
+                for reason in function.valuable_reasons:
+                    print(f"  - {reason['objective']}: {reason['current_score']} > {reason['threshold']}")
+        
+        # 显示多目标评分（如果有）
+        if hasattr(function, 'multi_objective_scores'):
+            print(f'Multi-objective scores:')
+            for objective, score in function.multi_objective_scores["scores"].items():
+                print(f'  - {objective}: {score}')
+            print(f'  - Total weighted score: {function.multi_objective_scores["total"]}')
+        
         print(f'======================================================\n\n')
 
         # update best function

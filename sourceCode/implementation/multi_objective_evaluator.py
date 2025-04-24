@@ -2,6 +2,8 @@ import ast
 from difflib import SequenceMatcher
 from typing import Dict, List, Any, Optional
 
+from implementation.programs_database import _reduce_score
+
 class MultiObjectiveEvaluator:
     """Evaluator that scores code on multiple dimensions."""
     
@@ -66,10 +68,10 @@ class MultiObjectiveEvaluator:
         if weights is None:
             weights = {"performance": 0.5, "simplicity": 0.2, "interpretability": 0.15, "novelty": 0.15}
             
-        from implementation.funsearch import _reduce_score
         performance_score = _reduce_score(scores_per_test) if scores_per_test else float('-inf')
         function_code = str(function)
         
+        # 计算每个目标的分数
         scores = {
             "performance": self.evaluate_performance(performance_score),
             "simplicity": self.evaluate_simplicity(function_code),
@@ -77,9 +79,15 @@ class MultiObjectiveEvaluator:
             "novelty": self.evaluate_novelty(function_code, evaluated_functions)
         }
         
+        # 计算总分
         total_score = sum(weights[metric] * scores[metric] for metric in weights)
+        
+        # 添加原始分数，方便记录
+        raw_scores = {"raw_performance": performance_score} if scores_per_test else {}
         
         return {
             "total": total_score,
-            "scores": scores
+            "scores": scores,
+            "weights": weights,
+            "raw_scores": raw_scores
         }

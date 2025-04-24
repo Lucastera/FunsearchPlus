@@ -78,10 +78,10 @@ class LLMAPI(sampler.LLM):
 
         while True:
             try:
-                conn = http.client.HTTPSConnection("api.deepseek.com")
+                conn = http.client.HTTPSConnection("api.bltcy.ai")
                 payload = json.dumps({
                     "max_tokens": 512,
-                    "model": "deepseek-chat",
+                    "model": "gpt-3.5-turbo",
                     "messages": [
                         {
                             "role": "user",
@@ -90,7 +90,7 @@ class LLMAPI(sampler.LLM):
                     ]
                 })
                 headers = {
-                    'Authorization': 'Bearer sk-4d4b1fb4def14ae3887a21683c3f1763',
+                    'Authorization': 'Bearer sk-o9WYOsdKKZC853Ng560e70Fd2b8249139f4b989fE771F9Dd',
                     'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
                     'Content-Type': 'application/json'
                 }
@@ -297,7 +297,7 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_original',
+        log_dir='./logs/funsearch_llm_original',
         enable_duplicate_check=True,
         duplicate_check_method='similarity', # 'hash' or 'similarity' or 'ai_agent'
         similarity_threshold=0.8, # only works when duplicate_check_method='similarity'  or 'ai_agent'
