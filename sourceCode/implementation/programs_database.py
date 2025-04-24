@@ -164,8 +164,10 @@ class ProgramsDatabase:
             program.global_sample_nums = global_sample_nums
             program.sample_time = sample_time
             program.evaluate_time = evaluate_time
+            # Pass scores_per_test for multi-objective evaluation
             profiler.register_function(
                 program,
+                scores_per_test=scores_per_test,
                 method=duplicate_check_method,
                 threshold=threshold
             )

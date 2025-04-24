@@ -57,6 +57,8 @@ def main(
         enable_duplicate_check: bool = True,  # 是否啟用重複代碼檢查
         duplicate_check_method: str = "similarity",  # 檢查方法 ("hash" 或 "similarity")
         similarity_threshold: float = 0.9,  # 相似度閾值（僅適用於 "similarity" 方法）
+        enable_multi_objective: bool = True, # 是否使用多目標評估
+        objective_weights: dict = None,  # 目標權重（僅適用於多目標評估）
         **kwargs
 ):
     """Launches a FunSearch experiment.
@@ -68,20 +70,30 @@ def main(
         enable_duplicate_check: 是否啟用重複代碼檢查。
         duplicate_check_method: 檢查方法 ("hash" 或 "similarity")。
         similarity_threshold: 相似度閾值（僅適用於 "similarity" 方法）。
+        enable_multi_objective: 是否使用多目標評估。
+        objective_weights: 目標權重（僅適用於多目標評估）。
     """
     function_to_evolve, function_to_run = _extract_function_names(specification)
     template = code_manipulation.text_to_program(specification)
     database = programs_database.ProgramsDatabase(config.programs_database, template, function_to_evolve)
 
     # 初始化完成後，根據參數啟用或禁用重複代碼檢查
-    if enable_duplicate_check:
-        profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
-        profiler._evaluated_hashes.clear()
-        profiler._evaluated_functions.clear()
-    else:
-        profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
-        profiler._evaluated_hashes.clear()
-        profiler._evaluated_functions.clear()
+    # if enable_duplicate_check:
+    #     profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
+    #     profiler._evaluated_hashes.clear()
+    #     profiler._evaluated_functions.clear()
+    # else:
+    #     profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
+    #     profiler._evaluated_hashes.clear()
+    #     profiler._evaluated_functions.clear()
+    profiler = profile.Profiler(
+        log_dir=kwargs.get('log_dir', None),
+    )
+    profiler._evaluated_hashes.clear()
+    profiler._evaluated_functions.clear()
+    
+    if enable_multi_objective:
+        profiler.enable_multi_objective_evaluation(True, objective_weights)
 
     evaluators = []
     for _ in range(config.num_evaluators):

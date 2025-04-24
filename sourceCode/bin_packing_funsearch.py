@@ -55,9 +55,17 @@ class LLMAPI(sampler.LLM):
 
     def __init__(self, samples_per_prompt: int, trim=True):
         super().__init__(samples_per_prompt)
-        additional_prompt = ('Complete a different and more complex Python function. '
-                             'Be creative and you can insert multiple if-else and for-loop in the code logic.'
-                             'Only output the Python code, no descriptions.')
+        additional_prompt = (
+            """
+            Complete a different and more complex Python function. 
+            Optimize for MULTIPLE OBJECTIVES:
+            1. PERFORMANCE: Generate efficient code that minimizes the number of bins used
+            2. SIMPLICITY: Keep code concise and avoid unnecessary complexity
+            3. INTERPRETABILITY: Use descriptive variable names and include helpful comments
+            4. NOVELTY: Explore different approaches than previous implementations
+            Only output the Python code, no descriptions.
+            """
+        )
         self._additional_prompt = additional_prompt
         self._trim = trim
 
@@ -274,6 +282,15 @@ if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     global_max_sample_num = 20  # if it is set to None, funsearch will execute an endless loop
+    
+    # Multi-objective weights configuration
+    objective_weights = {
+        "performance": 0.5,
+        "simplicity": 0.2,
+        "interpretability": 0.15,
+        "novelty": 0.15
+    }
+    
     funsearch.main(
         specification=specification,
         inputs=bin_packing_or3,
@@ -281,9 +298,11 @@ if __name__ == '__main__':
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
         log_dir='../logs/funsearch_llm_original',
-        enable_duplicate_check=False,
-        duplicate_check_method='no', # 'hash' or 'similarity' or 'ai_agent'
-        similarity_threshold=0.8 # only works when duplicate_check_method='similarity'  or 'ai_agent'
+        enable_duplicate_check=True,
+        duplicate_check_method='similarity', # 'hash' or 'similarity' or 'ai_agent'
+        similarity_threshold=0.8, # only works when duplicate_check_method='similarity'  or 'ai_agent'
+        enable_multi_objective=True,  # Changed parameter name for consistency
+        objective_weights=objective_weights
     )
     # 記錄結束時間
     end_time = time.time()

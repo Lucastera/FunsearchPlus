@@ -225,6 +225,7 @@ class Evaluator:
                 new_function.evaluate_time = evaluate_time
                 profiler.register_function(
                     new_function,
+                    scores_per_test=None,  # Pass empty scores_per_test
                     method=duplicate_check_method,
                     threshold=threshold
                 )

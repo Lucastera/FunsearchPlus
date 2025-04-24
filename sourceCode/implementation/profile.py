@@ -12,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 import hashlib  # 新增導入
 from difflib import SequenceMatcher  # 用於計算相似度
 from openai import OpenAI
+from implementation.multi_objective_evaluator import MultiObjectiveEvaluator
 
 import http.client
 
@@ -54,6 +55,13 @@ class Profiler:
         self._each_sample_evaluate_failed_program_num = []
         self._each_sample_tot_sample_time = []
         self._each_sample_tot_evaluate_time = []
+        # Multi-objective evaluator init
+        self._use_multi_objective = False
+        self._objective_weights = None
+        self._multi_objective_evaluator = None
+        
+        self._best_per_objective = {}
+        self._multi_objective_scores = []
 
     def _load_evaluated_hashes(self):
         """從日志文件夾加載已評估代碼的哈希值和完整內容。"""
@@ -124,7 +132,51 @@ class Profiler:
                 logging.error(f"AI Agent 評估失敗: {e}")
                 continue
         return False
-
+    
+    def enable_multi_objective_evaluation(self, enable: bool = True, weights: dict = None):
+        """Enable or disable multi-objective evaluation with specified weights."""
+        self._use_multi_objective = enable
+        
+        if enable:
+            self._multi_objective_evaluator = MultiObjectiveEvaluator()
+            
+            self._objective_weights = weights or {
+                "performance": 0.5, "simplicity": 0.2, 
+                "interpretability": 0.15, "novelty": 0.15
+            }
+            
+            self._best_per_objective = {
+                "performance": {"score": float('-inf'), "function": None},
+                "simplicity": {"score": float('-inf'), "function": None},
+                "interpretability": {"score": float('-inf'), "function": None},
+                "novelty": {"score": float('-inf'), "function": None},
+                "total": {"score": float('-inf'), "function": None}
+            }
+        else:
+            # Clear structures if disabled
+            self._objective_weights = None
+            self._multi_objective_evaluator = None
+            self._best_per_objective = {}
+            self._multi_objective_scores = []
+            
+    def is_valuable_solution(self, function_code: str, scores_per_test=None, threshold=0.9):
+        """Check if code is valuable despite being similar to existing solutions."""
+        if not self._use_multi_objective or not scores_per_test:
+            return False
+            
+        from implementation import code_manipulation
+        temp_function = code_manipulation.Function(name="temp", args="", body=function_code)
+        
+        multi_scores = self._multi_objective_evaluator.compute_multi_objective_score(
+            temp_function, scores_per_test, self._evaluated_functions, self._objective_weights
+        )
+        
+        for objective, data in self._best_per_objective.items():
+            if objective in multi_scores["scores"] and multi_scores["scores"][objective] > data["score"] * threshold:
+                return True
+                
+        return False
+    
     def _write_tensorboard(self):
         if not self._log_dir:
             return
@@ -134,6 +186,25 @@ class Profiler:
             self._cur_best_program_score,
             global_step=self._num_samples
         )
+        
+        if self._use_multi_objective and self._multi_objective_scores:
+            latest_scores = self._multi_objective_scores[-1]["scores"]
+            self._writer.add_scalars(
+                'Multi-Objective Scores',
+                {k: v for k, v in latest_scores.items()},
+                global_step=self._num_samples
+            )
+            
+            best_scores = {
+                f"best_{obj}": data["score"] 
+                for obj, data in self._best_per_objective.items()
+            }
+            self._writer.add_scalars(
+                'Best Multi-Objective Scores',
+                best_scores,
+                global_step=self._num_samples
+            )
+
         self._writer.add_scalars(
             'Legal/Illegal Function',
             {
@@ -158,11 +229,15 @@ class Profiler:
             'function': function_str,
             'score': score
         }
+        
+        if hasattr(programs, 'multi_objective_scores'):
+            content['multi_objective_scores'] = programs.multi_objective_scores
+        
         path = os.path.join(self._json_dir, f'samples_{sample_order}.json')
         with open(path, 'w') as json_file:
             json.dump(content, json_file)
 
-    def register_function(self, programs: code_manipulation.Function, **kwargs):
+    def register_function(self, programs: code_manipulation.Function, scores_per_test=None, **kwargs):
         """Registers a function and checks for duplicates."""
         method = kwargs["method"]  # 必須從 kwargs 中獲取
         threshold = kwargs["threshold"]  # 必須從 kwargs 中獲取
@@ -173,22 +248,23 @@ class Profiler:
         function_code = str(programs)
         #if self._evaluated_functions !=[] and function_code == self._evaluated_functions[0]:
         #    return
+        is_duplicate = False
         if method == "hash" and self.is_duplicate_by_hash(function_code):  # 基於哈希值檢查
-            print("#########################################")
-            print("#  Skipping duplicate function (hash):  #")
-            print("#########################################")
-            print(function_code)
-            return
+            is_duplicate = True
         elif method == "similarity" and self.is_duplicate_by_similarity(function_code, threshold):  # 基於相似度檢查
-            print("###############################################")
-            print("#  Skipping duplicate function (similarity):  #")
-            print("###############################################")
-            print(function_code)
-            return
+            is_duplicate = True
         elif method == "ai_agent" and self.is_duplicate_by_ai_agent(function_code, threshold):  # 基於 AI Agent 檢查
-            print("###############################################")
-            print("#  Skipping duplicate function (AI Agent):    #")
-            print("###############################################")
+            is_duplicate = True
+        
+        if is_duplicate and self._use_multi_objective:
+            if self.is_valuable_solution(function_code, scores_per_test, threshold):
+                is_duplicate = False
+                print("#######################################")
+                print("#  Keeping valuable similar solution  #")
+                print("#######################################")
+                
+        if is_duplicate:
+            print(f"Skipping duplicate function ({method}):")
             print(function_code)
             return
 
@@ -196,6 +272,23 @@ class Profiler:
         code_hash = hashlib.sha256(function_code.encode()).hexdigest()
         self._evaluated_hashes.add(code_hash)
         self._evaluated_functions.append(function_code)
+        
+        if self._use_multi_objective and scores_per_test:
+            multi_scores = self._multi_objective_evaluator.compute_multi_objective_score(
+                programs, scores_per_test, self._evaluated_functions[:-1], self._objective_weights
+            )
+            
+            for objective, score in multi_scores["scores"].items():
+                if score > self._best_per_objective[objective]["score"]:
+                    self._best_per_objective[objective]["score"] = score
+                    self._best_per_objective[objective]["function"] = programs
+                    
+            if multi_scores["total"] > self._best_per_objective["total"]["score"]:
+                self._best_per_objective["total"]["score"] = multi_scores["total"] 
+                self._best_per_objective["total"]["function"] = programs
+                
+            self._multi_objective_scores.append(multi_scores)
+            programs.multi_objective_scores = multi_scores
 
         sample_orders: int = programs.global_sample_nums
         if sample_orders not in self._all_sampled_functions:

@@ -50,6 +50,7 @@ class Function:
     global_sample_nums: int | None = None  # RZ: record the order of the current program in the sequence of samples taken.
     sample_time: float | None = None  # RZ: add this
     evaluate_time: float | None = None  # RZ: add this
+    multi_objective_scores: dict = None  # New field for multi-objective scores
 
     def __str__(self) -> str:
         return_type = f' -> {self.return_type}' if self.return_type else ''
