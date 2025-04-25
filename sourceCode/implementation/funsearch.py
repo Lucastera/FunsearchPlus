@@ -15,6 +15,7 @@
 
 """A single-threaded implementation of the FunSearch pipeline."""
 from __future__ import annotations
+import dataclasses
 
 # from collections.abc import Sequence
 
@@ -57,6 +58,11 @@ def main(
         enable_duplicate_check: bool = True,  # 是否啟用重複代碼檢查
         duplicate_check_method: str = "similarity",  # 檢查方法 ("hash" 或 "similarity")
         similarity_threshold: float = 0.9,  # 相似度閾值（僅適用於 "similarity" 方法）
+        # Multi-strategy parameters
+        enable_multi_strategy: bool = False,
+        diversity_mode: int = 0,
+        multi_num: int = 2,
+        multi_strategies: list[str] = None,
         **kwargs
 ):
     """Launches a FunSearch experiment.
@@ -68,10 +74,32 @@ def main(
         enable_duplicate_check: 是否啟用重複代碼檢查。
         duplicate_check_method: 檢查方法 ("hash" 或 "similarity")。
         similarity_threshold: 相似度閾值（僅適用於 "similarity" 方法）。
+        enable_multi_strategy: 是否啟用多策略優化。
+        diversity_mode: 策略選擇模式 (0: 單一, 1: 主次策略組合, 2: 多目標優化)。
+        multi_num: 每次提示詞中組合的策略數量。
+        multi_strategies: 可選擇的策略列表。
     """
     function_to_evolve, function_to_run = _extract_function_names(specification)
     template = code_manipulation.text_to_program(specification)
-    database = programs_database.ProgramsDatabase(config.programs_database, template, function_to_evolve)
+    
+    # Set up multi-strategy configuration
+    if multi_strategies is None:
+        multi_strategies = ["performance"]
+    
+    multi_strategy_config = config_lib.MultiStrategyConfig(
+        enable_multi_strategy=enable_multi_strategy,
+        diversity_mode=diversity_mode,
+        multi_num=multi_num,
+        multi_strategies=multi_strategies
+    )
+    
+    # Update config with multi-strategy settings
+    updated_config = dataclasses.replace(
+        config, 
+        multi_strategy=multi_strategy_config
+    )
+    
+    database = programs_database.ProgramsDatabase(updated_config.programs_database, template, function_to_evolve)
 
     # 初始化完成後，根據參數啟用或禁用重複代碼檢查
     if enable_duplicate_check:
@@ -84,7 +112,7 @@ def main(
         profiler._evaluated_functions.clear()
 
     evaluators = []
-    for _ in range(config.num_evaluators):
+    for _ in range(updated_config.num_evaluators):
         evaluators.append(evaluator.Evaluator(
             database,
             template,
@@ -106,8 +134,14 @@ def main(
     )
 
     # Set global max sample nums.
-    samplers = [sampler.Sampler(database, evaluators, config.samples_per_prompt, max_sample_nums=max_sample_nums, llm_class=class_config.llm_class)
-                for _ in range(config.num_samplers)]
+    samplers = [sampler.Sampler(
+        database, 
+        evaluators, 
+        updated_config.samples_per_prompt, 
+        max_sample_nums=max_sample_nums, 
+        llm_class=class_config.llm_class,
+        multi_strategy_config=multi_strategy_config)
+    for _ in range(updated_config.num_samplers)]
 
     # This loop can be executed in parallel on remote sampler machines. As each
     # sampler enters an infinite loop, without parallelization only the first

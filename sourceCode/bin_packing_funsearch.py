@@ -53,12 +53,12 @@ class LLMAPI(sampler.LLM):
     """Language model that predicts continuation of provided source code.
     """
 
-    def __init__(self, samples_per_prompt: int, trim=True):
-        super().__init__(samples_per_prompt)
-        additional_prompt = ('Complete a different and more complex Python function. '
-                             'Be creative and you can insert multiple if-else and for-loop in the code logic.'
-                             'Only output the Python code, no descriptions.')
-        self._additional_prompt = additional_prompt
+    def __init__(self, samples_per_prompt: int, multi_strategy_config=None, trim=True):
+        super().__init__(samples_per_prompt, multi_strategy_config)
+        base_prompt = ('Complete a different and more complex Python function. '
+                       'Be creative and you can insert multiple if-else and for-loop in the code logic.'
+                       'Only output the Python code, no descriptions.')
+        self._additional_prompt = base_prompt
         self._trim = trim
 
     def draw_samples(self, prompt: str) -> Collection[str]:
@@ -66,23 +66,30 @@ class LLMAPI(sampler.LLM):
         return [self._draw_sample(prompt) for _ in range(self._samples_per_prompt)]
 
     def _draw_sample(self, content: str) -> str:
-        prompt = '\n'.join([content, self._additional_prompt])
+        """Get strategy-specific prompt and generate code sample."""
+        strategy_prompt = self._get_strategy_prompt()
+        
+        # Combine base prompt with strategy-specific guidance
+        if strategy_prompt:
+            prompt_text = f'\n'.join([content, f"{self._additional_prompt} {strategy_prompt}"])
+        else:
+            prompt_text = '\n'.join([content, self._additional_prompt])
 
         while True:
             try:
-                conn = http.client.HTTPSConnection("api.deepseek.com")
+                conn = http.client.HTTPSConnection("api.zhizengzeng.com")
                 payload = json.dumps({
                     "max_tokens": 512,
-                    "model": "deepseek-chat",
+                    "model": "gpt-3.5-turbo",
                     "messages": [
                         {
                             "role": "user",
-                            "content": prompt
+                            "content": prompt_text
                         }
                     ]
                 })
                 headers = {
-                    'Authorization': 'Bearer sk-4d4b1fb4def14ae3887a21683c3f1763',
+                    'Authorization': 'Bearer sk-zk2ab5e237c4f881fb0bd6946884ab85136674377293100e',
                     'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
                     'Content-Type': 'application/json'
                 }
@@ -274,16 +281,23 @@ if __name__ == '__main__':
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
     global_max_sample_num = 20  # if it is set to None, funsearch will execute an endless loop
+    
+    bin_packing_or3 = {'OR3': bin_packing_utils.datasets['OR3']}
+    
     funsearch.main(
         specification=specification,
         inputs=bin_packing_or3,
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_original',
-        enable_duplicate_check=False,
-        duplicate_check_method='no', # 'hash' or 'similarity' or 'ai_agent'
-        similarity_threshold=0.8 # only works when duplicate_check_method='similarity'  or 'ai_agent'
+        log_dir='./logs/funsearch_llm_original',
+        enable_duplicate_check=True,
+        duplicate_check_method='similarity',  # 'hash' or 'similarity' or 'ai_agent'
+        similarity_threshold=0.8,  # only works when duplicate_check_method='similarity' or 'ai_agent'
+        enable_multi_strategy=True,  # 控制是否启用多策略优化
+        diversity_mode=1,  # 0: 单一策略, 1: 主次策略组合, 2: 多目标优化
+        multi_num=2,  # 本次多目标每次选择几个目标
+        multi_strategies=["performance", "algorithm", "code_structure"]  # 启用的策略列表
     )
     # 記錄結束時間
     end_time = time.time()
