@@ -3,7 +3,7 @@
 import sys
 
 sys.path.append('/content/funsearch/')
-
+import os
 import time
 import json
 import multiprocessing
@@ -261,10 +261,12 @@ def priority(item: float, bins: np.ndarray) -> np.ndarray:
 
 import bin_packing_utils
 
-bin_packing_or3 = {'OR3': bin_packing_utils.datasets['OR3']}
+bin_packing_OR3 = {'OR3': bin_packing_utils.datasets['OR3']}
+bin_packing_Weibull_5k = {'Weibull 5k': bin_packing_utils.datasets['Weibull 5k']}
 
 from implementation import funsearch
 from implementation import config
+
 
 # It should be noted that the if __name__ == '__main__' is required.
 # Because the inner code uses multiprocess evaluation.
@@ -273,16 +275,16 @@ if __name__ == '__main__':
     start_time = time.time()
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config = config.Config(samples_per_prompt=4)
-    global_max_sample_num = 20  # if it is set to None, funsearch will execute an endless loop
+    global_max_sample_num = 50  # if it is set to None, funsearch will execute an endless loop
     funsearch.main(
         specification=specification,
-        inputs=bin_packing_or3,
+        inputs=bin_packing_Weibull_5k,
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_original',
-        enable_duplicate_check=False,
-        duplicate_check_method='no', # 'hash' or 'similarity' or 'ai_agent'
+        log_dir='../logs/funsearch_llm_Weibull_5k_similarity',
+        enable_duplicate_check=True,
+        duplicate_check_method='similarity', # 'hash' or 'similarity' or 'ai_agent' or 'original'
         similarity_threshold=0.8 # only works when duplicate_check_method='similarity'  or 'ai_agent'
     )
     # 記錄結束時間
@@ -291,3 +293,11 @@ if __name__ == '__main__':
     # 計算並打印所用時間
     elapsed_time = end_time - start_time
     print(f"Funsearch 執行完成，所用時間: {elapsed_time:.2f} 秒")
+    logging_fodder='../logs/funsearch_llm_Weibull_5k_similarity'
+    # Save elapsed time to json file
+    os.makedirs(logging_fodder, exist_ok=True)
+
+    time_data = {'elapsed_time': elapsed_time}
+    with open(os.path.join(logging_fodder, 'elapsed_time.json'), 'w') as f:
+        json.dump(time_data, f)
+
