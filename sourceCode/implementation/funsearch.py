@@ -60,7 +60,6 @@ def main(
         similarity_threshold: float = 0.9,  # 相似度閾值（僅適用於 "similarity" 方法）
         # Multi-strategy parameters
         enable_multi_strategy: bool = False,
-        diversity_mode: int = 0,
         multi_num: int = 2,
         multi_strategies: list[str] = None,
         **kwargs
@@ -75,7 +74,6 @@ def main(
         duplicate_check_method: 檢查方法 ("hash" 或 "similarity")。
         similarity_threshold: 相似度閾值（僅適用於 "similarity" 方法）。
         enable_multi_strategy: 是否啟用多策略優化。
-        diversity_mode: 策略選擇模式 (0: 單一, 1: 主次策略組合, 2: 多目標優化)。
         multi_num: 每次提示詞中組合的策略數量。
         multi_strategies: 可選擇的策略列表。
     """
@@ -84,11 +82,10 @@ def main(
     
     # Set up multi-strategy configuration
     if multi_strategies is None:
-        multi_strategies = ["performance"]
+        multi_strategies = ["quality"]
     
     multi_strategy_config = config_lib.MultiStrategyConfig(
         enable_multi_strategy=enable_multi_strategy,
-        diversity_mode=diversity_mode,
         multi_num=multi_num,
         multi_strategies=multi_strategies
     )

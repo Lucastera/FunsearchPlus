@@ -29,22 +29,20 @@ class MultiStrategyConfig:
     
     Attributes:
       enable_multi_strategy: Whether to enable multi-strategy optimization.
-      diversity_mode: Strategy selection mode (0: single, 1: primary+secondary, 2: multi-objective).
       multi_num: Number of strategies to combine in each prompt.
       multi_strategies: List of strategies to choose from.
     """
     enable_multi_strategy: bool = False
-    diversity_mode: int = 0
     multi_num: int = 2
     multi_strategies: list[str] = dataclasses.field(default_factory=lambda: ["performance"])
     
     # Define available optimization strategies
     OPTIMIZATION_STRATEGIES: dict = dataclasses.field(default_factory=lambda: {
-        "performance": {
-            "name": "PERFORMANCE",
-            "description": "efficiency and speed optimization",
-            "guidance": "Implement O(n) algorithms. Use vectorized operations. Avoid nested loops. Minimize temporary arrays. Prefer in-place operations.",
-            "short_name": "PERFORMANCE"
+       "quality": {
+            "name": "SOLUTION_QUALITY",
+            "description": "optimize solution quality",
+            "guidance": "Minimize resource usage. Prioritize best decisions at each step. Consider both current state and future impact. Use problem-specific insights.",
+            "short_name": "QUALITY"
         },
         "algorithm": {
             "name": "ALGORITHM", 
@@ -64,11 +62,11 @@ class MultiStrategyConfig:
             "guidance": "Use broadcasting, built-ins (max, sum). Apply conditional expressions. Use list comprehensions and efficient array operations.",
             "short_name": "PYTHON_FEATURES"
         },
-        "memory_usage": {
-            "name": "MEMORY_USAGE",
-            "description": "memory efficiency",
-            "guidance": "Use in-place operations. Prefer views over copies. Use boolean indexing. Reuse memory when possible.",
-            "short_name": "MEMORY_USAGE"
+        "mathematical_optimization": {
+            "name": "MATHEMATICAL_OPTIMIZATION",
+            "description": "apply mathematical optimization techniques",
+            "guidance": "Use ratio-based comparison methods. Consider weighted scoring functions. Apply normalization techniques to balance multiple factors. Implement adaptive thresholds based on statistical properties of the data.",
+            "short_name": "MATH_OPT"
         }
     })
 

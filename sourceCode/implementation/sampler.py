@@ -63,74 +63,67 @@ class LLM(ABC):
     def _get_strategy_prompt(self) -> str:
         """Get prompt based on selected optimization strategies."""
         if not self._multi_strategy_config or not self._multi_strategy_config.enable_multi_strategy:
-            return ""
-            
+            return "", []
+        
         strategies = self._multi_strategy_config.OPTIMIZATION_STRATEGIES
         selected_strategies = []
-        mode = self._multi_strategy_config.diversity_mode
+        selected_strategy_names = []  # 记录选择的策略名称
         
-        # Select strategies based on mode
-        if mode == 0:  # Single strategy
-            if self._multi_strategy_config.multi_strategies:
-                primary = self._multi_strategy_config.multi_strategies[0]
-                if primary in strategies:
-                    selected_strategies.append(strategies[primary])
+        multi_num = min(self._multi_strategy_config.multi_num, 
+                    len(self._multi_strategy_config.multi_strategies))
         
-        elif mode == 1:  # Primary + secondary
-            multi_num = min(self._multi_strategy_config.multi_num, 
-                           len(self._multi_strategy_config.multi_strategies))
-            if multi_num > 0 and self._multi_strategy_config.multi_strategies:
-                # Always include primary strategy
-                primary = self._multi_strategy_config.multi_strategies[0]
-                if primary in strategies:
-                    selected_strategies.append(strategies[primary])
-                
-                # Add random secondary strategies
-                secondary_options = self._multi_strategy_config.multi_strategies[1:]
-                if secondary_options and multi_num > 1:
-                    num_secondary = min(multi_num - 1, len(secondary_options))
-                    selected_secondary = np.random.choice(
-                        secondary_options, num_secondary, replace=False).tolist()
-                    for s in selected_secondary:
-                        if s in strategies:
-                            selected_strategies.append(strategies[s])
+   
+        if multi_num > 0 and self._multi_strategy_config.multi_strategies:
+            # Always include primary strategy
+            primary = self._multi_strategy_config.multi_strategies[0]
+            if primary in strategies:
+                selected_strategies.append(strategies[primary])
+                selected_strategy_names.append(primary)  # 记录策略名称
+            
+            # Add random secondary strategies
+            secondary_options = self._multi_strategy_config.multi_strategies[1:]
+            if secondary_options and multi_num > 1:
+                num_secondary = min(multi_num - 1, len(secondary_options))
+                selected_secondary = np.random.choice(
+                    secondary_options, num_secondary, replace=False).tolist()
+                for s in selected_secondary:
+                    if s in strategies:
+                        selected_strategies.append(strategies[s])
+                        selected_strategy_names.append(s)  # 记录策略名称
         
-        elif mode == 2:  # Multi-objective (random selection)
-            multi_num = min(self._multi_strategy_config.multi_num, 
-                           len(self._multi_strategy_config.multi_strategies))
-            if multi_num > 0 and self._multi_strategy_config.multi_strategies:
-                selected_keys = np.random.choice(
-                    self._multi_strategy_config.multi_strategies, 
-                    multi_num, replace=False).tolist()
-                for key in selected_keys:
-                    if key in strategies:
-                        selected_strategies.append(strategies[key])
-        
-        # Construct a cohesive prompt from selected strategies
+        # if multi_num > 0 and self._multi_strategy_config.multi_strategies:
+        #     selected_keys = np.random.choice(
+        #         self._multi_strategy_config.multi_strategies, 
+        #         multi_num, replace=False).tolist()
+        #     for key in selected_keys:
+        #         if key in strategies:
+        #             selected_strategies.append(strategies[key])
+        #             selected_strategy_names.append(key)  # 记录策略名称
+                    
+        # 构建提示词
         if not selected_strategies:
-            return ""
+            return "", []
         
         # Format: FOCUS ON X, Y AND Z: Create a solution that balances...
-        if not selected_strategies:
-            return ""
-    
         strategy_names = [s["short_name"] for s in selected_strategies]
         strategy_descriptions = [s["description"] for s in selected_strategies]
         strategy_guidances = [s["guidance"] for s in selected_strategies]
-        
         if len(strategy_names) == 1:
-            focus = f"FOCUS ON {strategy_names[0]}: Create a solution that emphasizes {strategy_descriptions[0]}. {strategy_guidances[0]}"
-            return focus
+            focus_list = strategy_names[0]
+            desc_list = strategy_descriptions[0]
+        elif len(strategy_names) == 2:
+            focus_list = " AND ".join(strategy_names)
+            desc_list = " and ".join(strategy_descriptions)
         else:
-            if len(strategy_names) == 2:
-                focus_list = " AND ".join(strategy_names)
-                desc_list = " and ".join(strategy_descriptions)
-            else:
-                focus_list = ", ".join(strategy_names[:-1]) + f" AND {strategy_names[-1]}"
-                desc_list = ", ".join(strategy_descriptions[:-1]) + f" and {strategy_descriptions[-1]}"
+            focus_list = ", ".join(strategy_names[:-1]) + f" AND {strategy_names[-1]}"
+            desc_list = ", ".join(strategy_descriptions[:-1]) + f" and {strategy_descriptions[-1]}"
+        
+        guidance_combined = " ".join(strategy_guidances)
+        if len(strategy_names) == 1:
+            return f"FOCUS ON {focus_list}: {guidance_combined}", selected_strategy_names
             
-            guidance_combined = " ".join(strategy_guidances)
-            return f"FOCUS ON {focus_list}: Create a solution that balances {desc_list}. {guidance_combined}"
+        else:
+            return f"FOCUS ON {focus_list}: Create a solution that balances {desc_list}. {guidance_combined}", selected_strategy_names
 
     def _draw_sample(self, prompt: str) -> str:
         """Returns a predicted continuation of `prompt`."""
