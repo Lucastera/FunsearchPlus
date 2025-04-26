@@ -97,7 +97,8 @@ def main(
     )
     
     database = programs_database.ProgramsDatabase(updated_config.programs_database, template, function_to_evolve)
-
+    
+    actual_duplicate_check_method = duplicate_check_method
     # 初始化完成後，根據參數啟用或禁用重複代碼檢查
     if enable_duplicate_check:
         profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
@@ -107,6 +108,7 @@ def main(
         profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
         profiler._evaluated_hashes.clear()
         profiler._evaluated_functions.clear()
+        actual_duplicate_check_method = "no"
 
     evaluators = []
     for _ in range(updated_config.num_evaluators):
@@ -126,7 +128,7 @@ def main(
         island_id=None,
         version_generated=None,
         profiler=profiler,
-        method=duplicate_check_method,  # 傳遞檢查方法
+        method=actual_duplicate_check_method,  # 傳遞檢查方法
         threshold=similarity_threshold  # 傳遞相似度閾值
     )
 
@@ -138,4 +140,4 @@ def main(
     # sampler enters an infinite loop, without parallelization only the first
     # sampler will do any work.
     for s in samplers:
-        s.sample(profiler=profiler, method=duplicate_check_method, threshold=similarity_threshold)
+        s.sample(profiler=profiler, method=actual_duplicate_check_method, threshold=similarity_threshold)
