@@ -131,14 +131,8 @@ def main(
     )
 
     # Set global max sample nums.
-    samplers = [sampler.Sampler(
-        database, 
-        evaluators, 
-        updated_config.samples_per_prompt, 
-        max_sample_nums=max_sample_nums, 
-        llm_class=class_config.llm_class,
-        multi_strategy_config=multi_strategy_config)
-    for _ in range(updated_config.num_samplers)]
+    samplers = [sampler.Sampler(database, evaluators, config.samples_per_prompt, max_sample_nums=max_sample_nums, llm_class=class_config.llm_class, multi_strategy_config=multi_strategy_config, log_dir=kwargs.get('log_dir', None))
+                for _ in range(config.num_samplers)]
 
     # This loop can be executed in parallel on remote sampler machines. As each
     # sampler enters an infinite loop, without parallelization only the first

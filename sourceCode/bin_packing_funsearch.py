@@ -8,7 +8,7 @@ import sys
 from log_prompt import log_prompt_response
 
 sys.path.append('/content/funsearch/')
-
+import os
 import time
 import json
 import multiprocessing
@@ -308,10 +308,12 @@ def priority(item: float, bins: np.ndarray) -> np.ndarray:
 
 import bin_packing_utils
 
-bin_packing_or3 = {'OR3': bin_packing_utils.datasets['OR3']}
+bin_packing_OR3 = {'OR3': bin_packing_utils.datasets['OR3']}
+bin_packing_Weibull_5k = {'Weibull 5k': bin_packing_utils.datasets['Weibull 5k']}
 
 from implementation import funsearch
 from implementation import config
+
 
 # It should be noted that the if __name__ == '__main__' is required.
 # Because the inner code uses multiprocess evaluation.

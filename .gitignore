@@ -1,6 +1,5 @@
 # Ignore logs directory
 logs/
-cal_prune.ipynb
 __pycache__/
 test*.py
 python_code_export.txt

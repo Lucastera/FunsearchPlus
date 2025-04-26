@@ -163,16 +163,17 @@ class Profiler:
             json.dump(content, json_file)
 
     def register_function(self, programs: code_manipulation.Function, **kwargs):
-        """Registers a function and checks for duplicates."""
+        
+        """Registers a function and checks for duplicates.
         method = kwargs["method"]  # 必須從 kwargs 中獲取
         threshold = kwargs["threshold"]  # 必須從 kwargs 中獲取
 
         if self._max_log_nums is not None and self._num_samples >= self._max_log_nums:
             return
-
+        
         function_code = str(programs)
-        #if self._evaluated_functions !=[] and function_code == self._evaluated_functions[0]:
-        #    return
+        if self._evaluated_functions !=[] and function_code == self._evaluated_functions[0]:
+            return
         if method == "hash" and self.is_duplicate_by_hash(function_code):  # 基於哈希值檢查
             print("#########################################")
             print("#  Skipping duplicate function (hash):  #")
@@ -192,11 +193,13 @@ class Profiler:
             print(function_code)
             return
 
+
         # 如果不是重複代碼，記錄哈希值和完整內容
         code_hash = hashlib.sha256(function_code.encode()).hexdigest()
         self._evaluated_hashes.add(code_hash)
         self._evaluated_functions.append(function_code)
-
+        """
+        
         sample_orders: int = programs.global_sample_nums
         if sample_orders not in self._all_sampled_functions:
             self._num_samples += 1
