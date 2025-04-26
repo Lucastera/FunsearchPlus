@@ -189,15 +189,17 @@ class Sampler:
             sample_time = (time.time() - reset_time) / self._samples_per_prompt
             
             for sample in samples:
-                function_code = "def priority(item: float, bins: np.ndarray) -> np.ndarray: \n" +"""Returns priority with which we want to add item to each bin.
+                function_code = '''def priority(item: float, bins: np.ndarray) -> np.ndarray:
+    """Returns priority with which we want to add item to each bin.
 
-                                Args:
-                                    item: Size of item to be added to the bin.
-                                    bins: Array of capacities for each bin.
+    Args:
+        item: Size of item to be added to the bin.
+        bins: Array of capacities for each bin.
 
-                                Return:
-                                    Array of same size as bins with priority score of each bin.\n
-                                """ + sample
+    Return:
+        Array of same size as bins with priority score of each bin.
+    """
+    """Improved version of `priority_v0`."""'''+ sample  # RZ: add function signature
                 
 
                 

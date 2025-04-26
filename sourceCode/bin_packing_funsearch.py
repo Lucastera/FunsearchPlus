@@ -282,9 +282,9 @@ if __name__ == '__main__':
         config=config,
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_Weibull_5k_similarity',
+        log_dir='../logs/funsearch_llm_Weibull_5k_hash',
         enable_duplicate_check=True,
-        duplicate_check_method='similarity', # 'hash' or 'similarity' or 'ai_agent' or 'original'
+        duplicate_check_method='hash', # 'hash' or 'similarity' or 'ai_agent' or 'original'
         similarity_threshold=0.8 # only works when duplicate_check_method='similarity'  or 'ai_agent'
     )
     # 記錄結束時間
@@ -293,7 +293,7 @@ if __name__ == '__main__':
     # 計算並打印所用時間
     elapsed_time = end_time - start_time
     print(f"Funsearch 執行完成，所用時間: {elapsed_time:.2f} 秒")
-    logging_fodder='../logs/funsearch_llm_Weibull_5k_similarity'
+    logging_fodder='../logs/funsearch_llm_Weibull_5k_hash'
     # Save elapsed time to json file
     os.makedirs(logging_fodder, exist_ok=True)
 
