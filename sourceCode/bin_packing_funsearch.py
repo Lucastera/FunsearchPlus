@@ -399,7 +399,7 @@ def run_experiment(dataset='weibull', strategies=["algorithm"],
 if __name__ == '__main__':
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run FunSearch experiment')
-    parser.add_argument('--dataset', type=str, default='weibull', choices=['weibull', 'OR3'], 
+    parser.add_argument('--dataset', type=str, default='weibull', choices=['weibull', 'or3'], 
                       help='Dataset to use')
     parser.add_argument('--strategies', type=str, nargs='+', 
                       default=[],
