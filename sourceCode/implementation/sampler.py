@@ -98,15 +98,6 @@ class LLM(ABC):
                     if s in strategies:
                         selected_strategies.append(strategies[s])
                         selected_strategy_names.append(s)  # 记录策略名称
-        
-        # if multi_num > 0 and self._multi_strategy_config.multi_strategies:
-        #     selected_keys = np.random.choice(
-        #         self._multi_strategy_config.multi_strategies, 
-        #         multi_num, replace=False).tolist()
-        #     for key in selected_keys:
-        #         if key in strategies:
-        #             selected_strategies.append(strategies[key])
-        #             selected_strategy_names.append(key)  # 记录策略名称
                     
         # 构建提示词
         if not selected_strategies:
