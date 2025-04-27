@@ -15,6 +15,7 @@
 
 """A single-threaded implementation of the FunSearch pipeline."""
 from __future__ import annotations
+import dataclasses
 
 # from collections.abc import Sequence
 
@@ -57,6 +58,10 @@ def main(
         enable_duplicate_check: bool = True,  # 是否啟用重複代碼檢查
         duplicate_check_method: str = "similarity",  # 檢查方法 ("hash" 或 "similarity")
         similarity_threshold: float = 0.9,  # 相似度閾值（僅適用於 "similarity" 方法）
+        # Multi-strategy parameters
+        enable_multi_strategy: bool = False,
+        multi_num: int = 2,
+        multi_strategies: list[str] = None,
         **kwargs
 ):
     """Launches a FunSearch experiment.
@@ -68,11 +73,32 @@ def main(
         enable_duplicate_check: 是否啟用重複代碼檢查。
         duplicate_check_method: 檢查方法 ("hash" 或 "similarity")。
         similarity_threshold: 相似度閾值（僅適用於 "similarity" 方法）。
+        enable_multi_strategy: 是否啟用多策略優化。
+        multi_num: 每次提示詞中組合的策略數量。
+        multi_strategies: 可選擇的策略列表。
     """
     function_to_evolve, function_to_run = _extract_function_names(specification)
     template = code_manipulation.text_to_program(specification)
-    database = programs_database.ProgramsDatabase(config.programs_database, template, function_to_evolve)
-
+    
+    # Set up multi-strategy configuration
+    if multi_strategies is None:
+        multi_strategies = ["quality"]
+    
+    multi_strategy_config = config_lib.MultiStrategyConfig(
+        enable_multi_strategy=enable_multi_strategy,
+        multi_num=multi_num,
+        multi_strategies=multi_strategies
+    )
+    
+    # Update config with multi-strategy settings
+    updated_config = dataclasses.replace(
+        config, 
+        multi_strategy=multi_strategy_config
+    )
+    
+    database = programs_database.ProgramsDatabase(updated_config.programs_database, template, function_to_evolve)
+    
+    actual_duplicate_check_method = duplicate_check_method
     # 初始化完成後，根據參數啟用或禁用重複代碼檢查
     if enable_duplicate_check:
         profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
@@ -82,9 +108,10 @@ def main(
         profiler = profile.Profiler(log_dir=kwargs.get('log_dir', None))
         profiler._evaluated_hashes.clear()
         profiler._evaluated_functions.clear()
+        actual_duplicate_check_method = "no"
 
     evaluators = []
-    for _ in range(config.num_evaluators):
+    for _ in range(updated_config.num_evaluators):
         evaluators.append(evaluator.Evaluator(
             database,
             template,
@@ -101,16 +128,16 @@ def main(
         island_id=None,
         version_generated=None,
         profiler=profiler,
-        method=duplicate_check_method,  # 傳遞檢查方法
+        method=actual_duplicate_check_method,  # 傳遞檢查方法
         threshold=similarity_threshold  # 傳遞相似度閾值
     )
 
     # Set global max sample nums.
-    samplers = [sampler.Sampler(database, evaluators, config.samples_per_prompt, max_sample_nums=max_sample_nums, llm_class=class_config.llm_class, log_dir=kwargs.get('log_dir', None))
+    samplers = [sampler.Sampler(database, evaluators, config.samples_per_prompt, max_sample_nums=max_sample_nums, llm_class=class_config.llm_class, multi_strategy_config=multi_strategy_config, log_dir=kwargs.get('log_dir', None))
                 for _ in range(config.num_samplers)]
 
     # This loop can be executed in parallel on remote sampler machines. As each
     # sampler enters an infinite loop, without parallelization only the first
     # sampler will do any work.
     for s in samplers:
-        s.sample(profiler=profiler, method=duplicate_check_method, threshold=similarity_threshold)
+        s.sample(profiler=profiler, method=actual_duplicate_check_method, threshold=similarity_threshold)

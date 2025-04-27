@@ -62,8 +62,67 @@ class LLM(ABC):
     which will be trimmed by Evaluator.
     """
 
-    def __init__(self, samples_per_prompt: int) -> None:
+    def __init__(self, samples_per_prompt: int, multi_strategy_config=None) -> None:
         self._samples_per_prompt = samples_per_prompt
+        self._multi_strategy_config = multi_strategy_config
+        self._additional_prompt = ""
+        self._current_strategy_prompt = ""
+        
+    def _get_strategy_prompt(self) -> str:
+        """Get prompt based on selected optimization strategies."""
+        if not self._multi_strategy_config or not self._multi_strategy_config.enable_multi_strategy:
+            return "", []
+        
+        strategies = self._multi_strategy_config.OPTIMIZATION_STRATEGIES
+        selected_strategies = []
+        selected_strategy_names = []  # 记录选择的策略名称
+        
+        multi_num = min(self._multi_strategy_config.multi_num, 
+                    len(self._multi_strategy_config.multi_strategies))
+        
+   
+        if multi_num > 0 and self._multi_strategy_config.multi_strategies:
+            # Always include primary strategy
+            primary = self._multi_strategy_config.multi_strategies[0]
+            if primary in strategies:
+                selected_strategies.append(strategies[primary])
+                selected_strategy_names.append(primary)  # 记录策略名称
+            
+            # Add random secondary strategies
+            secondary_options = self._multi_strategy_config.multi_strategies[1:]
+            if secondary_options and multi_num > 1:
+                num_secondary = min(multi_num - 1, len(secondary_options))
+                selected_secondary = np.random.choice(
+                    secondary_options, num_secondary, replace=False).tolist()
+                for s in selected_secondary:
+                    if s in strategies:
+                        selected_strategies.append(strategies[s])
+                        selected_strategy_names.append(s)  # 记录策略名称
+                    
+        # 构建提示词
+        if not selected_strategies:
+            return "", []
+        
+        # Format: FOCUS ON X, Y AND Z: Create a solution that balances...
+        strategy_names = [s["short_name"] for s in selected_strategies]
+        strategy_descriptions = [s["description"] for s in selected_strategies]
+        strategy_guidances = [s["guidance"] for s in selected_strategies]
+        if len(strategy_names) == 1:
+            focus_list = strategy_names[0]
+            desc_list = strategy_descriptions[0]
+        elif len(strategy_names) == 2:
+            focus_list = " AND ".join(strategy_names)
+            desc_list = " and ".join(strategy_descriptions)
+        else:
+            focus_list = ", ".join(strategy_names[:-1]) + f" AND {strategy_names[-1]}"
+            desc_list = ", ".join(strategy_descriptions[:-1]) + f" and {strategy_descriptions[-1]}"
+        
+        guidance_combined = " ".join(strategy_guidances)
+        if len(strategy_names) == 1:
+            return f"FOCUS ON {focus_list}: {guidance_combined}", selected_strategy_names
+            
+        else:
+            return f"FOCUS ON {focus_list}: Create a solution that balances {desc_list}. {guidance_combined}", selected_strategy_names
 
     def _draw_sample(self, prompt: str) -> str:
         """Returns a predicted continuation of `prompt`."""
@@ -87,12 +146,13 @@ class Sampler:
             samples_per_prompt: int,
             max_sample_nums: int | None = None,
             llm_class: Type[LLM] = LLM,
+            multi_strategy_config=None,
             log_dir: str | None = None,
     ):
         self._samples_per_prompt = samples_per_prompt
         self._database = database
         self._evaluators = evaluators
-        self._llm = llm_class(samples_per_prompt)
+        self._llm = llm_class(samples_per_prompt, multi_strategy_config)
         self._max_sample_nums = max_sample_nums
         self._evaluated_hashes = set()  # 存儲已評估代碼的哈希值
         self._evaluated_functions = []  # 存儲已評估代碼的完整內容

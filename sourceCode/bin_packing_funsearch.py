@@ -1,6 +1,11 @@
 # !git clone https://github.com/RayZhhh/funsearch.git
 
+import argparse
+import os
+import random
 import sys
+
+from log_prompt import log_prompt_response
 
 sys.path.append('/content/funsearch/')
 import os
@@ -11,6 +16,25 @@ from typing import Collection, Any
 import http.client
 from implementation import sampler
 
+
+def generate_log_dir(dataset_name, strategies, multi_enabled=False, dup_check_enabled=False, dup_method="similarity"):
+    """Generate unique log directory name for different configurations
+    
+    Args:
+        dataset_name: Dataset name ('weibull' or 'OR3')
+        strategies: List of strategies used
+        multi_enabled: Whether multi-strategy is enabled
+        dup_check_enabled: Whether duplicate check is enabled
+        dup_method: Duplicate check method
+    
+    Returns:
+        str: Unique log directory path
+    """
+    strategy_str = "_".join(strategies)
+    multi_part = "multi" if multi_enabled else "single"
+    dup_part = "nodup" if not dup_check_enabled else f"dup_{dup_method}"
+    
+    return f"./logs/funsearch_{dataset_name}_{strategy_str}_{multi_part}_{dup_part}"
 
 def _trim_preface_of_body(sample: str) -> str:
     """Trim the redundant descriptions/symbols/'def' declaration before the function body.
@@ -49,16 +73,26 @@ def _trim_preface_of_body(sample: str) -> str:
     return sample
 
 
+# Add class variable to store log directory
 class LLMAPI(sampler.LLM):
     """Language model that predicts continuation of provided source code.
     """
-
-    def __init__(self, samples_per_prompt: int, trim=True):
-        super().__init__(samples_per_prompt)
-        additional_prompt = ('Complete a different and more complex Python function. '
-                             'Be creative and you can insert multiple if-else and for-loop in the code logic.'
-                             'Only output the Python code, no descriptions.')
-        self._additional_prompt = additional_prompt
+    _log_dir = None
+    def __init__(self, samples_per_prompt: int, multi_strategy_config=None, trim=True):
+        super().__init__(samples_per_prompt, multi_strategy_config)
+        base_prompt = ('Complete a different and more complex Python function. '
+                       'Be creative and you can insert multiple if-else and for-loop in the code logic.'
+                       'Only output the Python code, no descriptions.')
+        # self._multi_additional_prompt = 'Complete a different Python function.'
+        # self._multi_additional_prompt_suffix = 'Only output the Python code, no descriptions.'
+        # self._evolutionary_perspectives = [
+        #     "Consider the problem from a different angle than conventional approaches",
+        #     "Think about a novel representation of the problem elements",
+        #     "Explore an adaptive strategy that responds to input characteristics",
+        #     "Consider what nature-inspired processes might solve this problem efficiently",
+        #     "Think about how this problem could be decomposed differently"
+        # ]
+        self._additional_prompt = base_prompt
         self._trim = trim
 
     def draw_samples(self, prompt: str) -> Collection[str]:
@@ -66,23 +100,30 @@ class LLMAPI(sampler.LLM):
         return [self._draw_sample(prompt) for _ in range(self._samples_per_prompt)]
 
     def _draw_sample(self, content: str) -> str:
-        prompt = '\n'.join([content, self._additional_prompt])
+        """Get strategy-specific prompt and generate code sample."""
+        strategy_prompt, selected_strategies = self._get_strategy_prompt()
+        
+        # Combine base prompt with strategy-specific guidance
+        if strategy_prompt:
+            prompt_text = f'\n'.join([content, f"{self._additional_prompt} {strategy_prompt}"])            
+        else:
+            prompt_text = '\n'.join([content, self._additional_prompt])
 
         while True:
             try:
-                conn = http.client.HTTPSConnection("api.deepseek.com")
+                conn = http.client.HTTPSConnection("api.zhizengzeng.com")
                 payload = json.dumps({
                     "max_tokens": 512,
-                    "model": "deepseek-chat",
+                    "model": "gpt-3.5-turbo",
                     "messages": [
                         {
                             "role": "user",
-                            "content": prompt
+                            "content": prompt_text
                         }
                     ]
                 })
                 headers = {
-                    'Authorization': 'Bearer sk-4d4b1fb4def14ae3887a21683c3f1763',
+                    'Authorization': 'Bearer sk-zk2ab5e237c4f881fb0bd6946884ab85136674377293100e',
                     'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
                     'Content-Type': 'application/json'
                 }
@@ -91,6 +132,9 @@ class LLMAPI(sampler.LLM):
                 data = res.read().decode("utf-8")
                 data = json.loads(data)
                 response = data['choices'][0]['message']['content']
+                
+                log_file = f"{self.__class__._log_dir}/prompt_response_log.jsonl" if self.__class__._log_dir else './logs/funsearch_llm_test/prompt_response_log.jsonl'
+                log_prompt_response(prompt_text, response, selected_strategies, log_file)
 
                 # trim function
                 if self._trim:
@@ -268,36 +312,122 @@ from implementation import funsearch
 from implementation import config
 
 
-# It should be noted that the if __name__ == '__main__' is required.
-# Because the inner code uses multiprocess evaluation.
-if __name__ == '__main__':
-    # 記錄開始時間
+def run_experiment(dataset='weibull', strategies=["algorithm"], 
+                  enable_multi=False, multi_num=1, 
+                  enable_dup_check=False, dup_method='similarity',
+                  max_samples=2000):
+    """Run experiment with specified configuration"""
+    # Record start time
     start_time = time.time()
+    
+    # Create unique log directory
+    log_dir = generate_log_dir(
+        dataset_name=dataset, 
+        strategies=strategies, 
+        multi_enabled=enable_multi,
+        dup_check_enabled=enable_dup_check,
+        dup_method=dup_method
+    )
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Record experiment configuration
+    config_info = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+        "command": " ".join(sys.argv),
+        "configuration": {
+            "dataset": dataset,
+            "strategies": strategies,
+            "enable_multi_strategy": enable_multi,
+            "multi_num": multi_num,
+            "enable_duplicate_check": enable_dup_check,
+            "duplicate_check_method": dup_method,
+            "max_samples": max_samples
+        }
+    }
+    
+    with open(f"{log_dir}/experiment_config.json", 'w') as f:
+        json.dump(config_info, f, indent=2)
+    
+    # Set up configurations
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
-    config = config.Config(samples_per_prompt=4)
-    global_max_sample_num = 50  # if it is set to None, funsearch will execute an endless loop
+    config_params = config.Config(samples_per_prompt=4)
+    
+    # Set dataset
+    if dataset.lower() == 'weibull':
+        dataset_dict = {'weibull': bin_packing_utils.datasets['Weibull 5k']}
+    elif dataset.lower() == 'or3':
+        dataset_dict = {'OR3': bin_packing_utils.datasets['OR3']}
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
+    
+    # Set LLM log directory
+    LLMAPI._log_dir = log_dir
+    
+    # Run FunSearch
     funsearch.main(
         specification=specification,
-        inputs=bin_packing_Weibull_5k,
-        config=config,
-        max_sample_nums=global_max_sample_num,
+        inputs=dataset_dict,
+        config=config_params,
+        max_sample_nums=max_samples,
         class_config=class_config,
-        log_dir='../logs/funsearch_llm_Weibull_ai_agent',
-        enable_duplicate_check=True,
-        duplicate_check_method='ai_agent', # 'hash' or 'similarity' or 'ai_agent' or 'original'
-        similarity_threshold=0.8 # only works when duplicate_check_method='similarity'  or 'ai_agent'
+        log_dir=log_dir,
+        enable_duplicate_check=enable_dup_check,
+        duplicate_check_method=dup_method,
+        similarity_threshold=0.8,
+        enable_multi_strategy=enable_multi,
+        multi_num=multi_num,
+        multi_strategies=strategies
     )
-    # 記錄結束時間
+    
+    # Record end time and runtime
     end_time = time.time()
-
-    # 計算並打印所用時間
     elapsed_time = end_time - start_time
-    print(f"Funsearch 執行完成，所用時間: {elapsed_time:.2f} 秒")
-    logging_fodder='../logs/funsearch_llm_Weibull_ai_agent'
-    # Save elapsed time to json file
-    os.makedirs(logging_fodder, exist_ok=True)
+    
+    # Update configuration file with runtime information
+    config_info["runtime"] = {
+        "seconds": elapsed_time,
+        "formatted": f"{elapsed_time:.2f} seconds"
+    }
+    
+    with open(f"{log_dir}/experiment_config.json", 'w') as f:
+        json.dump(config_info, f, indent=2)
+    
+    print(f"Funsearch execution completed, runtime: {elapsed_time:.2f} seconds")
+    
+    return log_dir
 
-    time_data = {'elapsed_time': elapsed_time}
-    with open(os.path.join(logging_fodder, 'elapsed_time.json'), 'w') as f:
-        json.dump(time_data, f)
-
+if __name__ == '__main__':
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Run FunSearch experiment')
+    parser.add_argument('--dataset', type=str, default='weibull', choices=['weibull', 'OR3'], 
+                      help='Dataset to use')
+    parser.add_argument('--strategies', type=str, nargs='+', 
+                      default=[],
+                      choices=['algorithm', 'code_structure', 'python_features', 'quality', 'mathematical_optimization'],
+                      help='List of strategies to use')
+    parser.add_argument('--multi_num', type=int, default=1, 
+                      help='Number of strategies to use each time')
+    parser.add_argument('--enable_multi', action='store_true', default=False,
+                      help='Enable multi-strategy optimization')
+    parser.add_argument('--enable_dup_check', action='store_true', default=False,
+                      help='Enable duplicate check')
+    parser.add_argument('--dup_method', type=str, default='no', 
+                      help='Duplicate check method')
+    parser.add_argument('--max_samples', type=int, default=1000,
+                      help='Maximum number of samples')
+    
+    args = parser.parse_args()
+    
+    # Run experiment
+    log_dir = run_experiment(
+        dataset=args.dataset,
+        strategies=args.strategies,
+        enable_multi=args.enable_multi,
+        multi_num=args.multi_num,
+        enable_dup_check=args.enable_dup_check,
+        dup_method=args.dup_method,
+        max_samples=args.max_samples
+    )
+    
+    print(f"Experiment results saved in: {log_dir}")
+    print(f"Use the following command to view TensorBoard: tensorboard --logdir {log_dir}")
