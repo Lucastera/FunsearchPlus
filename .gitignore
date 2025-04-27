@@ -1,0 +1,5 @@
+# Ignore logs directory
+logs*/
+__pycache__/
+test*.py
+python_code_export.txt
