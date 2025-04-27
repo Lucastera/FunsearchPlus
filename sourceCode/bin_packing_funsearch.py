@@ -105,9 +105,6 @@ class LLMAPI(sampler.LLM):
         
         # Combine base prompt with strategy-specific guidance
         if strategy_prompt:
-            # random_perspective = random.choice(self._evolutionary_perspectives)
-            # enhanced_multi_prompt = f"{self._multi_additional_prompt} {random_perspective}. {self._multi_additional_prompt_suffix}"
-            # prompt_text = f'\n'.join([content, f"{enhanced_multi_prompt} {strategy_prompt}"])
             prompt_text = f'\n'.join([content, f"{self._additional_prompt} {strategy_prompt}"])            
         else:
             prompt_text = '\n'.join([content, self._additional_prompt])
