@@ -333,10 +333,10 @@ def run_OR3():
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
         log_dir='./logs/funsearch_llm_original',
-        enable_duplicate_check=True,
+        enable_duplicate_check=False,
         duplicate_check_method='similarity',  # 'hash' or 'similarity' or 'ai_agent'
         similarity_threshold=0.8,  # only works when duplicate_check_method='similarity' or 'ai_agent'
-        enable_multi_strategy=True,  # 控制是否启用多策略优化
+        enable_multi_strategy=False,  # 控制是否启用多策略优化
         multi_num=2,  # 本次多目标每次选择几个目标
         multi_strategies=["algorithm", "code_structure", "python_features"]  # 启用的策略列表
     )
@@ -352,7 +352,7 @@ def run_weibull():
     start_time = time.time()
     class_config = config.ClassConfig(llm_class=LLMAPI, sandbox_class=Sandbox)
     config_params = config.Config(samples_per_prompt=4)
-    global_max_sample_num = 30  # if it is set to None, funsearch will execute an endless loop
+    global_max_sample_num = 20  # if it is set to None, funsearch will execute an endless loop
     
     bin_packing_weibull = {'weibull': bin_packing_utils.datasets['Weibull 5k']}
     
@@ -363,13 +363,13 @@ def run_weibull():
         max_sample_nums=global_max_sample_num,
         class_config=class_config,
         log_dir='./logs/funsearch_llm_original_weibull_test',
-        enable_duplicate_check=False,
+        enable_duplicate_check=True,
         duplicate_check_method='similarity',  # 'hash' or 'similarity' or 'ai_agent'
         similarity_threshold=0.8,  # only works when duplicate_check_method='similarity' or 'ai_agent'
-        enable_multi_strategy=False,  # 控制是否启用多策略优化
-        multi_num=1,  # 本次多目标每次选择几个目标
-        # multi_strategies=["quality", "code_structure"]  # 启用的策略列表
-        multi_strategies=["algorithm"]
+        enable_multi_strategy=True,  # 控制是否启用多策略优化
+        multi_num=2,  # 本次多目标每次选择几个目标
+        multi_strategies=["quality", "code_structure", 'algorithm']  # 启用的策略列表
+        # multi_strategies=[]
         # multi_strategies=["quality"]  # 启用的策略列表
     )
     # 記錄結束時間
@@ -379,9 +379,9 @@ def run_weibull():
     elapsed_time = end_time - start_time
     print(f"Funsearch 執行完成，所用時間: {elapsed_time:.2f} 秒")
     
-if __name__ == '__main__':
-    # run_OR3()
-    run_weibull()
+# if __name__ == '__main__':
+#     # run_OR3()
+#     run_weibull()
 
 def run_experiment(dataset='weibull', strategies=["algorithm"], 
                   enable_multi=False, multi_num=1, 
@@ -467,39 +467,38 @@ def run_experiment(dataset='weibull', strategies=["algorithm"],
     
     return log_dir
 
-# if __name__ == '__main__':
-#     # Parse command line arguments
-#     parser = argparse.ArgumentParser(description='Run FunSearch experiment')
-#     parser.add_argument('--dataset', type=str, default='weibull', choices=['weibull', 'OR3'], 
-#                       help='Dataset to use')
-#     parser.add_argument('--strategies', type=str, nargs='+', 
-#                       default=[],
-#                       choices=['algorithm', 'code_structure', 'python_features', 'quality', 'mathematical_optimization'],
-#                       help='List of strategies to use')
-#     parser.add_argument('--multi_num', type=int, default=1, 
-#                       help='Number of strategies to use each time')
-#     parser.add_argument('--enable_multi', action='store_true', default=False,
-#                       help='Enable multi-strategy optimization')
-#     parser.add_argument('--enable_dup_check', action='store_true', default=False,
-#                       help='Enable duplicate check')
-#     parser.add_argument('--dup_method', type=str, default='similarity', 
-#                       choices=['hash', 'similarity', 'ai_agent'],
-#                       help='Duplicate check method')
-#     parser.add_argument('--max_samples', type=int, default=1000,
-#                       help='Maximum number of samples')
+if __name__ == '__main__':
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Run FunSearch experiment')
+    parser.add_argument('--dataset', type=str, default='weibull', choices=['weibull', 'OR3'], 
+                      help='Dataset to use')
+    parser.add_argument('--strategies', type=str, nargs='+', 
+                      default=[],
+                      choices=['algorithm', 'code_structure', 'python_features', 'quality', 'mathematical_optimization'],
+                      help='List of strategies to use')
+    parser.add_argument('--multi_num', type=int, default=1, 
+                      help='Number of strategies to use each time')
+    parser.add_argument('--enable_multi', action='store_true', default=False,
+                      help='Enable multi-strategy optimization')
+    parser.add_argument('--enable_dup_check', action='store_true', default=False,
+                      help='Enable duplicate check')
+    parser.add_argument('--dup_method', type=str, default='no', 
+                      help='Duplicate check method')
+    parser.add_argument('--max_samples', type=int, default=1000,
+                      help='Maximum number of samples')
     
-#     args = parser.parse_args()
+    args = parser.parse_args()
     
-#     # Run experiment
-#     log_dir = run_experiment(
-#         dataset=args.dataset,
-#         strategies=args.strategies,
-#         enable_multi=args.enable_multi,
-#         multi_num=args.multi_num,
-#         enable_dup_check=args.enable_dup_check,
-#         dup_method=args.dup_method,
-#         max_samples=args.max_samples
-#     )
+    # Run experiment
+    log_dir = run_experiment(
+        dataset=args.dataset,
+        strategies=args.strategies,
+        enable_multi=args.enable_multi,
+        multi_num=args.multi_num,
+        enable_dup_check=args.enable_dup_check,
+        dup_method=args.dup_method,
+        max_samples=args.max_samples
+    )
     
-#     print(f"Experiment results saved in: {log_dir}")
-#     print(f"Use the following command to view TensorBoard: tensorboard --logdir {log_dir}")
+    print(f"Experiment results saved in: {log_dir}")
+    print(f"Use the following command to view TensorBoard: tensorboard --logdir {log_dir}")
