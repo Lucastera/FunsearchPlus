@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-04-27 16:16:31",
+  "command": "sourceCode/bin_packing_funsearch.py --dataset or3 --strategies quality code_structure algorithm --enable_multi --multi_num 2 --enable_dup_check --dup_method similarity --max_samples 50",
+  "configuration": {
+    "dataset": "or3",
+    "strategies": [
+      "quality",
+      "code_structure",
+      "algorithm"
+    ],
+    "enable_multi_strategy": true,
+    "multi_num": 2,
+    "enable_duplicate_check": true,
+    "duplicate_check_method": "similarity",
+    "max_samples": 50
+  },
+  "runtime": {
+    "seconds": 229.50811791419983,
+    "formatted": "229.51 seconds"
+  }
+}

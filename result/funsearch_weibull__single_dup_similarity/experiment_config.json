@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-04-27 05:15:49",
+  "command": "sourceCode/bin_packing_funsearch.py --dataset weibull --enable_dup_check --dup_method similarity --max_samples 1000",
+  "configuration": {
+    "dataset": "weibull",
+    "strategies": [],
+    "enable_multi_strategy": false,
+    "multi_num": 1,
+    "enable_duplicate_check": true,
+    "duplicate_check_method": "similarity",
+    "max_samples": 1000
+  },
+  "runtime": {
+    "seconds": 3885.3180310726166,
+    "formatted": "3885.32 seconds"
+  }
+}

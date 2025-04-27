@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-04-27 16:17:00",
+  "command": "sourceCode/bin_packing_funsearch.py --dataset or3 --enable_dup_check --dup_method similarity --max_samples 50",
+  "configuration": {
+    "dataset": "or3",
+    "strategies": [],
+    "enable_multi_strategy": false,
+    "multi_num": 1,
+    "enable_duplicate_check": true,
+    "duplicate_check_method": "similarity",
+    "max_samples": 50
+  },
+  "runtime": {
+    "seconds": 133.26576972007751,
+    "formatted": "133.27 seconds"
+  }
+}
