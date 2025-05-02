@@ -14,7 +14,7 @@
 # ==============================================================================
 
 """Configuration of a FunSearch experiment."""
-import os
+
 from __future__ import annotations
 
 import dataclasses
