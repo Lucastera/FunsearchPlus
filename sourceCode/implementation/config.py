@@ -14,6 +14,7 @@
 # ==============================================================================
 
 """Configuration of a FunSearch experiment."""
+import os
 from __future__ import annotations
 
 import dataclasses
@@ -21,6 +22,7 @@ from typing import Type
 
 from implementation import sampler
 from implementation import evaluator
+
 
 
 @dataclasses.dataclass(frozen=True)

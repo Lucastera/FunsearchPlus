@@ -15,7 +15,7 @@ import multiprocessing
 from typing import Collection, Any
 import http.client
 from implementation import sampler
-
+from implementation.sampler import *
 
 def generate_log_dir(dataset_name, strategies, multi_enabled=False, dup_check_enabled=False, dup_method="similarity"):
     """Generate unique log directory name for different configurations
@@ -111,27 +111,24 @@ class LLMAPI(sampler.LLM):
 
         while True:
             try:
-                conn = http.client.HTTPSConnection("api.zhizengzeng.com")
-                payload = json.dumps({
-                    "max_tokens": 512,
-                    "model": "gpt-3.5-turbo",
-                    "messages": [
+
+
+                client = OpenAI(api_key=args.api_key, base_url=BASE_URL)
+
+                message =  [
                         {
                             "role": "user",
                             "content": prompt_text
                         }
                     ]
-                })
-                headers = {
-                    'Authorization': 'Bearer sk-zk2ab5e237c4f881fb0bd6946884ab85136674377293100e',
-                    'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
-                    'Content-Type': 'application/json'
-                }
-                conn.request("POST", "/v1/chat/completions", payload, headers)
-                res = conn.getresponse()
-                data = res.read().decode("utf-8")
-                data = json.loads(data)
-                response = data['choices'][0]['message']['content']
+
+                response = client.chat.completions.create(
+                    model='gpt-3.5-turbo',
+                    messages=message,
+                    stream=False,
+                )
+
+                response = response.choices[0].message.content
                 
                 log_file = f"{self.__class__._log_dir}/prompt_response_log.jsonl" if self.__class__._log_dir else './logs/funsearch_llm_test/prompt_response_log.jsonl'
                 log_prompt_response(prompt_text, response, selected_strategies, log_file)
@@ -315,7 +312,7 @@ from implementation import config
 def run_experiment(dataset='weibull', strategies=["algorithm"], 
                   enable_multi=False, multi_num=1, 
                   enable_dup_check=False, dup_method='similarity',
-                  max_samples=2000):
+                  max_samples=2000, api_key=None):
     """Run experiment with specified configuration"""
     # Record start time
     start_time = time.time()
@@ -376,7 +373,8 @@ def run_experiment(dataset='weibull', strategies=["algorithm"],
         similarity_threshold=0.8,
         enable_multi_strategy=enable_multi,
         multi_num=multi_num,
-        multi_strategies=strategies
+        multi_strategies=strategies,
+        api_key=api_key 
     )
     
     # Record end time and runtime
@@ -415,6 +413,8 @@ if __name__ == '__main__':
                       help='Duplicate check method')
     parser.add_argument('--max_samples', type=int, default=1000,
                       help='Maximum number of samples')
+    parser.add_argument('--api_key', type=str, required=True,
+                  help='API key for the language model service')
     
     args = parser.parse_args()
     
@@ -426,7 +426,8 @@ if __name__ == '__main__':
         multi_num=args.multi_num,
         enable_dup_check=args.enable_dup_check,
         dup_method=args.dup_method,
-        max_samples=args.max_samples
+        max_samples=args.max_samples,
+        api_key=args.api_key
     )
     
     print(f"Experiment results saved in: {log_dir}")

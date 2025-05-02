@@ -55,75 +55,6 @@ class Profiler:
         self._each_sample_tot_sample_time = []
         self._each_sample_tot_evaluate_time = []
 
-    def _load_evaluated_hashes(self):
-        """從日志文件夾加載已評估代碼的哈希值和完整內容。"""
-        if not self._json_dir:
-            return
-        for file_name in os.listdir(self._json_dir):
-            if file_name.endswith('.json'):
-                with open(os.path.join(self._json_dir, file_name), 'r') as json_file:
-                    content = json.load(json_file)
-                    function_code = content.get('function', '')
-                    code_hash = hashlib.sha256(function_code.encode()).hexdigest()
-                    self._evaluated_hashes.add(code_hash)
-                    self._evaluated_functions.append(function_code)
-
-    def is_duplicate_by_hash(self, function_code: str) -> bool:
-        """檢查代碼是否已評估過（基於哈希值）。"""
-        code_hash = hashlib.sha256(function_code.encode()).hexdigest()
-        return code_hash in self._evaluated_hashes
-
-    def is_duplicate_by_similarity(self, function_code: str, threshold: float = 0.9) -> bool:
-        """檢查代碼是否已評估過（基於相似度）。"""
-        for evaluated_code in self._evaluated_functions:
-            similarity = SequenceMatcher(None, function_code, evaluated_code).ratio()
-            if similarity >= threshold:
-                return True
-        return False
-    
-    def is_duplicate_by_ai_agent(self, function_code: str, threshold: float = 0.9) -> bool:
-        """
-        檢查代碼是否已評估過（基於 AI Agent 評估）。
-        Args:
-            function_code: 要檢查的代碼。
-            threshold: 相似性分數的閾值，默認為 0.9。
-        Returns:
-            如果代碼被認為是重複的，返回 True；否則返回 False。
-        """
-        for evaluated_code in self._evaluated_functions:
-            try:
-                # 使用 AI Agent 比較代碼相似性
-                conn = http.client.HTTPSConnection("api.deepseek.com")
-                payload = json.dumps({
-                    "max_tokens": 512,
-                    "model": "deepseek-chat",
-                    "messages": [
-                                {"role": "system", "content": "You are a code similarity analyzer. Compare the two code snippets and return only a similarity score from [0, 1] based on their aim and logic. 1 means identical, 0 means completely different. Output should be a single number."},
-                                {"role": "user", "content": f"Code 1:\n{function_code}\n\nCode 2:\n{evaluated_code}"}]
-                })
-                headers = {
-                    'Authorization': 'Bearer sk-4d4b1fb4def14ae3887a21683c3f1763',
-                    'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
-                    'Content-Type': 'application/json'
-                }
-                conn.request("POST", "/v1/chat/completions", payload, headers)
-                res = conn.getresponse()
-                data = res.read().decode("utf-8")
-                data = json.loads(data)
-
-                words_to_remove = ['similarity','score', 'Score', 'Similarity',':',  ' ']
-                score_text = data['choices'][0]['message']['content'].strip()
-                print(f"AI Agent 評估結果: {score_text}")
-
-                for word in words_to_remove:
-                    score_text = score_text.replace(word, '')
-                score = float(score_text)
-                if score >= threshold:
-                    return True
-            except Exception as e:
-                logging.error(f"AI Agent 評估失敗: {e}")
-                continue
-        return False
 
     def _write_tensorboard(self):
         if not self._log_dir:
@@ -164,41 +95,6 @@ class Profiler:
 
     def register_function(self, programs: code_manipulation.Function, **kwargs):
         
-        """Registers a function and checks for duplicates.
-        method = kwargs["method"]  # 必須從 kwargs 中獲取
-        threshold = kwargs["threshold"]  # 必須從 kwargs 中獲取
-
-        if self._max_log_nums is not None and self._num_samples >= self._max_log_nums:
-            return
-        
-        function_code = str(programs)
-        if self._evaluated_functions !=[] and function_code == self._evaluated_functions[0]:
-            return
-        if method == "hash" and self.is_duplicate_by_hash(function_code):  # 基於哈希值檢查
-            print("#########################################")
-            print("#  Skipping duplicate function (hash):  #")
-            print("#########################################")
-            print(function_code)
-            return
-        elif method == "similarity" and self.is_duplicate_by_similarity(function_code, threshold):  # 基於相似度檢查
-            print("###############################################")
-            print("#  Skipping duplicate function (similarity):  #")
-            print("###############################################")
-            print(function_code)
-            return
-        elif method == "ai_agent" and self.is_duplicate_by_ai_agent(function_code, threshold):  # 基於 AI Agent 檢查
-            print("###############################################")
-            print("#  Skipping duplicate function (AI Agent):    #")
-            print("###############################################")
-            print(function_code)
-            return
-
-
-        # 如果不是重複代碼，記錄哈希值和完整內容
-        code_hash = hashlib.sha256(function_code.encode()).hexdigest()
-        self._evaluated_hashes.add(code_hash)
-        self._evaluated_functions.append(function_code)
-        """
         
         sample_orders: int = programs.global_sample_nums
         if sample_orders not in self._all_sampled_functions:

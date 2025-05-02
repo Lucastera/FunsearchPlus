@@ -32,6 +32,12 @@ import http.client
 from implementation import evaluator
 from implementation import programs_database
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY")
+BASE_URL = 'https://api.bltcy.ai/v1'
 
 class LLM(ABC):
     """Language model that predicts continuation of provided source code.
@@ -148,6 +154,7 @@ class Sampler:
             llm_class: Type[LLM] = LLM,
             multi_strategy_config=None,
             log_dir: str | None = None,
+            api_key: str | None = None,  
     ):
         self._samples_per_prompt = samples_per_prompt
         self._database = database
@@ -157,6 +164,7 @@ class Sampler:
         self._evaluated_hashes = set()  # 存儲已評估代碼的哈希值
         self._evaluated_functions = []  # 存儲已評估代碼的完整內容
         self._json_dir = os.path.join(log_dir, 'samples')
+        self._api_key = api_key 
     
     def _load_evaluated_hashes(self):
         """從日志文件夾加載已評估代碼的哈希值和完整內容。"""
@@ -196,26 +204,22 @@ class Sampler:
         for evaluated_code in self._evaluated_functions:
             try:
                 # 使用 AI Agent 比較代碼相似性
-                conn = http.client.HTTPSConnection("api.deepseek.com")
-                payload = json.dumps({
-                    "max_tokens": 512,
-                    "model": "deepseek-chat",
-                    "messages": [
-                                {"role": "system", "content": "You are a code similarity analyzer. Compare the two code snippets and return only a similarity score from [0, 1] based on their aim and logic. 1 means identical, 0 means completely different. Output should be a single number."},
-                                {"role": "user", "content": f"Code 1:\n{function_code}\n\nCode 2:\n{evaluated_code}"}]
-                })
-                headers = {
-                    'Authorization': 'Bearer sk-4d4b1fb4def14ae3887a21683c3f1763',
-                    'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
-                    'Content-Type': 'application/json'
-                }
-                conn.request("POST", "/v1/chat/completions", payload, headers)
-                res = conn.getresponse()
-                data = res.read().decode("utf-8")
-                data = json.loads(data)
+
+                client = OpenAI(api_key=self._api_key, base_url=BASE_URL)
+
+
+                message = [
+                            {"role": "system", "content": "You are a code similarity analyzer. Compare the two code snippets and return only a similarity score from [0, 1] based on their aim and logic. 1 means identical, 0 means completely different. Output should be a single number."},
+                            {"role": "user", "content": f"Code 1:\n{function_code}\n\nCode 2:\n{evaluated_code}"}]
+
+                response = client.chat.completions.create(
+                    model='gpt-3.5-turbo',
+                    messages=message,
+                    stream=False,
+                )
 
                 words_to_remove = ['similarity','score', 'Score', 'Similarity',':',  ' ']
-                score_text = data['choices'][0]['message']['content'].strip()
+                score_text = response.choices[0].message.content.strip()
                 print(f"AI Agent 評估結果: {score_text}")
 
                 for word in words_to_remove:
